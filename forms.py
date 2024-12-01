@@ -30,3 +30,18 @@ class RegistrationForm(FlaskForm):
     confirm_password = PasswordField('Confirm Password', validators=[
                                      DataRequired(), EqualTo('password')])
     submit = SubmitField('Register')
+
+
+class EmailForm(FlaskForm):
+    email = EmailField(label="Email", validators=[DataRequired("Email is required")])
+    submit = SubmitField("Submit")
+
+
+class ChangePasswordForm(FlaskForm):
+    password = PasswordField(label='New Password', validators=[
+            DataRequired("Password is required"), 
+            Length(min=7, message="Min length - 7 symbols")
+        ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+                                     DataRequired(), EqualTo('password')])
+    submit = SubmitField('Register')
