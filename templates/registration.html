@@ -6,7 +6,7 @@
             <h3>Register</h3>
         </div>
         <div class="card-body">
-            <form method="POST">
+            <form action="registration" method="POST">
                 {{ form.hidden_tag() }}
                 <div class="mb-3">
                     {{ form.username.label(class="form-label") }}
@@ -20,9 +20,7 @@
                     {{ form.confirm_password.label(class="form-label") }}
                     {{ form.confirm_password(class="form-control") }}
                 </div>
-                <div class="mb-3">
-                    {{ form.submit(class="btn btn-primary") }}
-                </div>
+                {{ form.submit(class="btn btn-primary") }}
             </form>
             <p class="text-light">Already have an account? <a href="{{ url_for('login') }}" class="text-light">Login here</a></p>
         </div>

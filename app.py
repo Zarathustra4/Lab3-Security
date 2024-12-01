@@ -5,15 +5,13 @@ from wtforms.validators import DataRequired, Length, EqualTo
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-# Database setup
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-
-# Database model for User
 
 
 class User(db.Model):
@@ -22,11 +20,8 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
 
 
-# Create the database tables
 with app.app_context():
     db.create_all()
-
-# Forms
 
 
 class LoginForm(FlaskForm):
@@ -40,11 +35,8 @@ class RegistrationForm(FlaskForm):
                            DataRequired(), Length(min=4)])
     password = PasswordField('Password', validators=[
                              DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm Password', validators=[
-                                     DataRequired(), EqualTo('password')])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired()])
     submit = SubmitField('Register')
-
-# Routes
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -77,7 +69,7 @@ def registration():
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'danger')
         else:
-            hashed_password = generate_password_hash(password, method='sha256')
+            hashed_password = generate_password_hash(password)
             new_user = User(username=username, password=hashed_password)
             db.session.add(new_user)
             db.session.commit()
