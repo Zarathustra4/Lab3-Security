@@ -14,6 +14,8 @@ class User(db.Model):
     is_admin = db.Column(db.Boolean(), nullable=False, default=False)
     failed_attempts = db.Column(db.Integer, default=0)
     last_failed_attempt = db.Column(db.DateTime, default=datetime.now())
+    oauth_provider = db.Column(db.String(50), nullable=True)
+    oauth_id = db.Column(db.String(200), nullable=True)
 
 
 class LoginAttempt(db.Model):
