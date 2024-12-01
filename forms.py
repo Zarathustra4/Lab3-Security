@@ -10,12 +10,7 @@ class LoginForm(FlaskForm):
         Regexp('^[A-Za-z][A-Za-z0-9_.]*$', 0, 'Username must have only letters, numbers, dots or underscores')
     ])
     password = PasswordField(label='Password', validators=[
-        DataRequired("Password is required"),
-        Length(min=8, message="Password must be at least 8 characters long"),
-        Regexp('(?=.*[a-z])', 0, 'Password must contain at least one lowercase letter'),
-        Regexp('(?=.*[A-Z])', 0, 'Password must contain at least one uppercase letter'),
-        Regexp('(?=.*\d)', 0, 'Password must contain at least one digit'),
-        Regexp('(?=.*[^\w\d])', 0, 'Password must contain at least one special character')
+        DataRequired("Password is required")
     ])
     submit = SubmitField('Login')
 
