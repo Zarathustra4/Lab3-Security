@@ -11,4 +11,7 @@
             <a href="{{ url_for('logout') }}" class="btn btn-primary">Log out</a>
         </div>
     </div>
+    {% if user.is_admin %}
+    
+    {% endif %}
 {% endblock %}
