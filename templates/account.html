@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="card mt-5">
+        <div class="card-header bg-dark text-light">
+            <h3>Welcome, {{ user.username }}!</h3>
+        </div>
+        <div class="card-body">
+            <p>You are now logged into your account.</p>
+            <a href="{{ url_for('logout') }}" class="btn btn-primary">Log out</a>
+        </div>
+    </div>
+{% endblock %}
