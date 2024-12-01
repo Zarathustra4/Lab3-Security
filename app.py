@@ -1,23 +1,37 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, session
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
+from flask_mail import Message, Mail
+from wtforms import StringField, PasswordField, SubmitField, EmailField
 from wtforms.validators import DataRequired, Length, EqualTo
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from itsdangerous import URLSafeTimedSerializer
+from dotenv import dotenv_values
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+config = dotenv_values(".env")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = config["SQLALCHEMY_DATABASE_URI"]
+app.config['SECURITY_PASSWORD_SALT'] = config["SECURITY_PASSWORD_SALT"]
+app.config["SECRET_KEY"] = config["SECRET_KEY"]
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = config['SQLALCHEMY_TRACK_MODIFICATIONS'] == "True"
+app.config['MAIL_SERVER'] = config['MAIL_SERVER']
+app.config['MAIL_PORT'] = int(config['MAIL_PORT'])
+app.config['MAIL_USE_TLS'] = config['MAIL_USE_TLS'] == "True"
+app.config['MAIL_USERNAME'] = config['MAIL_USERNAME']
+app.config['MAIL_PASSWORD'] = config['MAIL_PASSWORD']
 db = SQLAlchemy(app)
+mail = Mail(app)
 
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(120), unique=False, nullable=False)
+    confirmed = db.Column(db.Boolean(), nullable=False, default=False)
 
 
 with app.app_context():
@@ -33,10 +47,33 @@ class LoginForm(FlaskForm):
 class RegistrationForm(FlaskForm):
     username = StringField('Username', validators=[
                            DataRequired(), Length(min=4)])
+    email = EmailField("Email", validators=[DataRequired()])
     password = PasswordField('Password', validators=[
                              DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[
+                                     DataRequired(), EqualTo('password')])
     submit = SubmitField('Register')
+
+
+def generate_confirmation_token(email):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
+    return serializer.dumps(email)
+
+
+def confirm_token(token, expiration=3600):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
+    try:
+        email = serializer.loads(token, salt=app.config['SECURITY_PASSWORD_SALT'], 
+                                max_age=expiration)
+    except:
+        return False
+    return email
+
+
+def send_mail(to, subject, template):
+    msg = Message(subject, recipients=[to], html=template, sender=(
+        "Your App", "your_email@gmail.com"))
+    mail.send(msg)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -45,16 +82,16 @@ def login():
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
-
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
-            session['user_id'] = user.id  # Store the user id in the session
-            flash('Login successful!', 'success')
-            # Redirect to account page after login
-            return redirect(url_for('account'))
+            if user.confirmed:
+                session['user_id'] = user.id
+                flash('Login successful!', 'success')
+                return redirect(url_for('account'))
+            else:
+                flash('Please confirm your email to activate your account.', 'warning')
         else:
             flash('Invalid username or password', 'danger')
-
     return render_template('login.html', form=form)
 
 
@@ -64,28 +101,54 @@ def registration():
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
+        email = form.email.data
 
-        # Check if the username already exists
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'danger')
+        # if User.query.filter_by(email=email).first():
+        #     flash("Email already exists", 'danger')
         else:
             hashed_password = generate_password_hash(password)
-            new_user = User(username=username, password=hashed_password)
+            new_user = User(username=username,
+                            password=hashed_password, email=email)
             db.session.add(new_user)
             db.session.commit()
 
-            # Store the new user's ID in session and redirect to account page
+            token = generate_confirmation_token(new_user.email)
+            activation_link = url_for(
+                'confirm_email', token=token, _external=True)
+
+            send_mail(email, "Activate Your Account",
+                      f"Click the following link to activate your account: <a href='{activation_link}'>Activate</a>")
+
             session['user_id'] = new_user.id
-            flash('Registration successful! You are now logged in.', 'success')
-            # Redirect to account page after registration
-            return redirect(url_for('account'))
+            flash(
+                'Registration successful! Please check your email to activate your account.', 'success')
+            return redirect(url_for('login'))
 
     return render_template('registration.html', form=form)
 
 
+@app.route("/confirm/<token>")
+def confirm_email(token):
+    email = confirm_token(token)
+    if not email:
+        flash('The activation link is invalid or expired.', 'danger')
+        return redirect(url_for('login'))
+
+    user = User.query.filter_by(email=email).first_or_404()
+    if user.confirmed:
+        flash('Account already confirmed. Please log in.', 'success')
+    else:
+        user.confirmed = True
+        db.session.commit()
+        flash('Your account has been activated!', 'success')
+
+    return redirect(url_for('login'))
+
+
 @app.route('/account')
 def account():
-    # Check if the user is logged in
     if 'user_id' not in session:
         flash('Please log in first.', 'danger')
         return redirect(url_for('login'))
@@ -96,7 +159,6 @@ def account():
 
 @app.route('/logout')
 def logout():
-    # Remove user_id from session to log the user out
     session.pop('user_id', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
