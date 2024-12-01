@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -22,4 +23,8 @@ class LoginAttempt(db.Model):
     username = db.Column(db.String(120), nullable=False)
     success = db.Column(db.Boolean, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.now())
+    is_admin = db.Column(db.Boolean(), nullable=False, default=False)
+    failed_attempts = db.Column(db.Integer, default=0)
+    last_failed_attempt = db.Column(db.DateTime, default=datetime.now())
+
 
