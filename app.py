@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from dotenv import dotenv_values
 from datetime import timedelta, datetime
+from flask_dance.contrib.google import make_google_blueprint, google
 
 from models import db, User, LoginAttempt
 from forms import RegistrationForm, LoginForm
@@ -27,9 +28,20 @@ app.config['MAIL_PORT'] = int(config['MAIL_PORT'])
 app.config['MAIL_USE_TLS'] = config['MAIL_USE_TLS'] == "True"
 app.config['MAIL_USERNAME'] = config['MAIL_USERNAME']
 app.config['MAIL_PASSWORD'] = config['MAIL_PASSWORD']
+app.config['GOOGLE_CLIENT_ID'] = config['GOOGLE_CLIENT_ID']
+app.config['GOOGLE_CLIENT_SECRET'] = config['GOOGLE_CLIENT_SECRET']
 
 mail = Mail(app)
 db.init_app(app)
+
+
+google_bp = make_google_blueprint(
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    redirect_to="google_login"
+)
+app.register_blueprint(google_bp, url_prefix="/google_login")
+
 
 with app.app_context():
     db.create_all()
@@ -76,7 +88,8 @@ def login():
         password = form.password.data
         user = User.query.filter_by(username=username).first()
 
-        login_attempt = LoginAttempt(username=username, success=False, timestamp=datetime.now())
+        login_attempt = LoginAttempt(
+            username=username, success=False, timestamp=datetime.now())
         db.session.add(login_attempt)
 
         if user:
@@ -89,7 +102,8 @@ def login():
                     db.session.commit()
                     return redirect(url_for('account'))
                 else:
-                    flash('Please confirm your email to activate your account.', 'warning')
+                    flash(
+                        'Please confirm your email to activate your account.', 'warning')
             else:
                 user.failed_attempts += 1
                 user.last_failed_attempt = datetime.now()
@@ -97,9 +111,9 @@ def login():
                 flash('Invalid username or password', 'danger')
         else:
             flash('Invalid username or password', 'danger')
-        
+
         db.session.commit()
-        
+
     return render_template('login.html', form=form)
 
 
@@ -157,7 +171,7 @@ def confirm_email(token):
 
 @app.route('/account')
 def account():
-    if 'user_id' not in session:
+    if 'user_id' not in session or not session["user_id"]:
         flash('Please log in first.', 'danger')
         return redirect(url_for('login'))
 
@@ -171,6 +185,32 @@ def logout():
     session.pop('user_id', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
+
+
+@app.route('/google_login')
+def google_login():
+    if not google.authorized:
+        return redirect(url_for('google.login'))
+    
+    resp = google.get("/plus/v1/people/me")
+    assert resp.ok, resp.text
+    info = resp.json()
+    email = info['emails'][0]['value']
+    user = User.query.filter_by(email=email).first()
+    
+    if user is None:
+        user = User(username=info['displayName'], email=email, confirmed=True, oauth_provider='google', oauth_id=info['id'])
+        db.session.add(user)
+        db.session.commit()
+    
+    session['user_id'] = user.id
+    flash('Login successful!', 'success')
+    return redirect(url_for('account'))
+
+
+@app.route("/")
+def root():
+    return redirect(url_for("login"))
 
 
 if __name__ == '__main__':
