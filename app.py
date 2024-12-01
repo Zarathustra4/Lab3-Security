@@ -1,12 +1,11 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, session
-from flask_wtf import FlaskForm
 from flask_mail import Message, Mail
-from wtforms import StringField, PasswordField, SubmitField, EmailField
-from wtforms.validators import DataRequired, Length, EqualTo
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from dotenv import dotenv_values
+
+from models import User, db
+from forms import RegistrationForm, LoginForm
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -22,49 +21,26 @@ app.config['MAIL_PORT'] = int(config['MAIL_PORT'])
 app.config['MAIL_USE_TLS'] = config['MAIL_USE_TLS'] == "True"
 app.config['MAIL_USERNAME'] = config['MAIL_USERNAME']
 app.config['MAIL_PASSWORD'] = config['MAIL_PASSWORD']
-db = SQLAlchemy(app)
+
 mail = Mail(app)
-
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    email = db.Column(db.String(120), unique=False, nullable=False)
-    confirmed = db.Column(db.Boolean(), nullable=False, default=False)
-
+db.init_app(app)
 
 with app.app_context():
     db.create_all()
 
 
-class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired()])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
-
-
-class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[
-                           DataRequired(), Length(min=4)])
-    email = EmailField("Email", validators=[DataRequired()])
-    password = PasswordField('Password', validators=[
-                             DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm Password', validators=[
-                                     DataRequired(), EqualTo('password')])
-    submit = SubmitField('Register')
-
-
 def generate_confirmation_token(email):
-    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
+    serializer = URLSafeTimedSerializer(
+        app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
     return serializer.dumps(email)
 
 
 def confirm_token(token, expiration=3600):
-    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
+    serializer = URLSafeTimedSerializer(
+        app.config['SECRET_KEY'], salt=app.config['SECURITY_PASSWORD_SALT'])
     try:
-        email = serializer.loads(token, salt=app.config['SECURITY_PASSWORD_SALT'], 
-                                max_age=expiration)
+        email = serializer.loads(token, salt=app.config['SECURITY_PASSWORD_SALT'],
+                                 max_age=expiration)
     except:
         return False
     return email
