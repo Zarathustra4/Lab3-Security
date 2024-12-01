@@ -7,7 +7,11 @@ py -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 ```
-3. Run the app
+3. Fill the `.env` file
+```bash
+type .env.example > .env 
+```
+4. Run the app
 ```bash
 py app.py
 ```
