@@ -4,7 +4,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from dotenv import dotenv_values
 from datetime import timedelta, datetime
+from datetime import timedelta, datetime
 
+from models import db, User, LoginAttempt
 from models import db, User, LoginAttempt
 from forms import RegistrationForm, LoginForm
 
@@ -13,8 +15,15 @@ MAX_FAILED_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=15)
 
 
+
+MAX_FAILED_ATTEMPTS = 5
+LOCK_TIME = timedelta(minutes=15)
+
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
+app.config['RECAPTCHA_PUBLIC_KEY'] = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'  # Site Key
+app.config['RECAPTCHA_PRIVATE_KEY'] = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
 
 config = dotenv_values(".env")
 
@@ -33,6 +42,16 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    if User.query.filter_by(username="admin").first() is None:
+        admin = User(
+            email="admin@gmail.com",
+            username="admin",
+            password=generate_password_hash("admin"),
+            confirmed=True,
+            is_admin=True
+        )
+        db.session.add(admin)
+        db.session.commit()
     if User.query.filter_by(username="admin").first() is None:
         admin = User(
             email="admin@gmail.com",
@@ -95,8 +114,31 @@ def login():
                 user.last_failed_attempt = datetime.now()
                 db.session.commit()
                 flash('Invalid username or password', 'danger')
+
+        login_attempt = LoginAttempt(username=username, success=False, timestamp=datetime.now())
+        db.session.add(login_attempt)
+
+        if user:
+            if check_password_hash(user.password, password):
+                if user.confirmed:
+                    login_attempt.success = True
+                    user.failed_attempts = 0
+                    session['user_id'] = user.id
+                    flash('Login successful!', 'success')
+                    db.session.commit()
+                    return redirect(url_for('account'))
+                else:
+                    flash('Please confirm your email to activate your account.', 'warning')
+            else:
+                user.failed_attempts += 1
+                user.last_failed_attempt = datetime.now()
+                db.session.commit()
+                flash('Invalid username or password', 'danger')
         else:
             flash('Invalid username or password', 'danger')
+        
+        db.session.commit()
+        
         
         db.session.commit()
         
@@ -113,7 +155,7 @@ def registration():
 
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'danger')
-        if User.query.filter_by(email=email).first():
+        elif User.query.filter_by(email=email).first():
             flash("Email already exists", 'danger')
         else:
             hashed_password = generate_password_hash(password)
@@ -130,11 +172,11 @@ def registration():
                       f"Click the following link to activate your account: <a href='{activation_link}'>Activate</a>")
 
             session['user_id'] = new_user.id
-            flash(
-                'Registration successful! Please check your email to activate your account.', 'success')
+            flash('Registration successful! Please check your email to activate your account.', 'success')
             return redirect(url_for('login'))
 
     return render_template('registration.html', form=form)
+
 
 
 @app.route("/confirm/<token>")

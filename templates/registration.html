@@ -24,9 +24,17 @@
                     {{ form.confirm_password.label(class="form-label") }}
                     {{ form.confirm_password(class="form-control") }}
                 </div>
+                <div class="mb-3">
+                    {{ form.recaptcha.label }}
+                    {{ form.recaptcha }}
+                    
+                </div>                              
                 {{ form.submit(class="btn btn-primary") }}
             </form>
             <p class="text-light">Already have an account? <a href="{{ url_for('login') }}" class="text-light">Login here</a></p>
         </div>
     </div>
 {% endblock %}
+
+
+
