@@ -26,9 +26,3 @@ class LoginAttempt(db.Model):
     last_failed_attempt = db.Column(db.DateTime, default=datetime.now())
 
 
-class LoginAttempt(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(120), nullable=False)
-    success = db.Column(db.Boolean, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.now())
-
