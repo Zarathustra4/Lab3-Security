@@ -5,7 +5,7 @@ from itsdangerous import URLSafeTimedSerializer
 from dotenv import dotenv_values
 from datetime import timedelta, datetime
 
-from models import User, db
+from models import db, User, LoginAttempt
 from forms import RegistrationForm, LoginForm
 
 
@@ -35,7 +35,7 @@ with app.app_context():
     db.create_all()
     if User.query.filter_by(username="admin").first() is None:
         admin = User(
-            email="admin@gmail.com", 
+            email="admin@gmail.com",
             username="admin",
             password=generate_password_hash("admin"),
             confirmed=True,
@@ -76,29 +76,29 @@ def login():
         password = form.password.data
         user = User.query.filter_by(username=username).first()
 
-        if user:
-            now = datetime.now()
-            # If the user has failed too many times in the last LOCK_TIME, deny login
-            if user.failed_attempts >= MAX_FAILED_ATTEMPTS and now - user.last_failed_attempt < LOCK_TIME:
-                flash('Your account is locked. Please try again later.', 'danger')
-                return render_template('login.html', form=form)
+        login_attempt = LoginAttempt(username=username, success=False, timestamp=datetime.now())
+        db.session.add(login_attempt)
 
+        if user:
             if check_password_hash(user.password, password):
                 if user.confirmed:
-                    user.failed_attempts = 0  # Reset failed attempts on successful login
+                    login_attempt.success = True
+                    user.failed_attempts = 0
                     session['user_id'] = user.id
                     flash('Login successful!', 'success')
+                    db.session.commit()
                     return redirect(url_for('account'))
                 else:
                     flash('Please confirm your email to activate your account.', 'warning')
             else:
-                # Increment failed attempts if login is unsuccessful
                 user.failed_attempts += 1
-                user.last_failed_attempt = now
+                user.last_failed_attempt = datetime.now()
                 db.session.commit()
                 flash('Invalid username or password', 'danger')
         else:
             flash('Invalid username or password', 'danger')
+        
+        db.session.commit()
         
     return render_template('login.html', form=form)
 
@@ -162,7 +162,8 @@ def account():
         return redirect(url_for('login'))
 
     user = User.query.get(session['user_id'])
-    return render_template('account.html', user=user)
+    attempts = LoginAttempt.query.order_by(LoginAttempt.timestamp.desc()).all()
+    return render_template('account.html', user=user, attempts=attempts)
 
 
 @app.route('/logout')

@@ -12,6 +12,31 @@
         </div>
     </div>
     {% if user.is_admin %}
-    
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Login Attempts</h1>
+        <table class="table table-bordered table-striped text-white">
+            <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Username</th>
+                    <th scope="col">Success</th>
+                    <th scope="col">Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in attempts %}
+                <tr>
+                    <td class="text-white">{{ attempt.username }}</td>
+                    <td>
+                        <span class="badge text-white">
+                            {{ 'Success' if attempt.success else 'Failure' }}
+                        </span>
+                    </td>
+                    <td class="text-white">{{ attempt.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
     {% endif %}
 {% endblock %}
